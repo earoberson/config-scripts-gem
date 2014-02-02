@@ -69,7 +69,7 @@ module ConfigScripts
       end
 
       def seeds_for(klass, filename=nil, &block)
-        filename ||= klass.name.underscore
+        filename ||= klass.name.underscore.pluralize
         @seed_types[klass] = SeedType.new(self, klass, filename, &block)
       end
 
