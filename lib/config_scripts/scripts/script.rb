@@ -16,17 +16,20 @@ module ConfigScripts
 
       def self.run_pending_scripts
         self.pending_scripts.each do |filename|
-          require Rails.root.join('db', 'config_scripts', "#{filename}.rb")
+          path = Rails.root.join('db', 'config_scripts', "#{filename}.rb")
+          require path
           timestamp = filename[0,14]
-          class_name = filename[15..-1].classify + 'Config'
-          puts "Got class name: #{class_name}"
+          class_name = filename[15..-1].camelize + 'Config'
           klass = nil
           begin
             klass = class_name.constantize
-            klass.new(timestamp).run(:up)
           rescue NameError
-            puts "Expected class #{class_name}"
+            puts "Aborting: could not find class #{class_name}"
+            return
           end
+          puts "Running #{filename}"
+          success = klass.new(timestamp).run(:up)
+          return unless success
         end
       end
 
@@ -44,20 +47,25 @@ module ConfigScripts
 
       def run(direction)
         ActiveRecord::Base.transaction do
+          success = false
           begin
             self.send(direction)
+            success = true
           rescue => e
             puts "Error running script for #{self.class.name}: #{e.message}"
             puts e.backtrace.first
           end
 
-          case(direction)
-          when :up
-            ScriptHistory.record_timestamp(@timestamp)
-          when :down
-            ScriptHistory.remove_timestamp(@timestamp)
+          if success
+            case(direction)
+            when :up
+              ScriptHistory.record_timestamp(@timestamp)
+            when :down
+              ScriptHistory.remove_timestamp(@timestamp)
+            end
+            Rails.cache.clear
           end
-          Rails.cache.clear
+          success
         end
       end
     end
