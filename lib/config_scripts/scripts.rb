@@ -4,3 +4,4 @@ module ConfigScripts
 end
 
 require 'config_scripts/scripts/script'
+require 'config_scripts/scripts/script_history'
