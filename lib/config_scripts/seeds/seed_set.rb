@@ -17,13 +17,19 @@ module ConfigScripts
         end
 
         def write
+          self.each_set(&:write)
+        end
+
+        def read
+          self.each_set(&:read)
+        end
+
+        def each_set(&block)
           @registered_sets ||= []
           self.load_seed_sets
           self.registered_sets.sort do |set1, set2|
             set1.order <=> set2.order
-          end.each do |set|
-            set.write
-          end
+          end.each(&block)
         end
 
         def load_seed_sets
@@ -51,13 +57,20 @@ module ConfigScripts
         end
       end
 
+      def read
+        folder = Rails.root.join('db', 'seeds', 'data', self.name)
+        FileUtils.mkdir_p(folder)
+        puts "Reading seeds from #{folder}"
+        ActiveRecord::Base.transaction do
+          self.seed_types.each do |klass, seed_type|
+            seed_type.read_from_folder(folder)
+          end
+        end
+      end
+
       def seeds_for(klass, filename=nil, &block)
         filename ||= klass.name.underscore
         @seed_types[klass] = SeedType.new(self, klass, filename, &block)
-      end
-
-      def set_seed_params_for_class(klass, params)
-        @seed_params[klass] = params
       end
 
       def seed_param_for_record(record)
@@ -70,6 +83,16 @@ module ConfigScripts
           klass = klass.superclass
         end
         record.id
+      end
+
+      def record_for_seed_identifier(klass, param)
+        @record_cache ||= {}
+        @record_cache[klass] ||= {}
+        record = @record_cache[klass][param]
+        return record if record
+        record = self.seed_types[klass].record_for_seed_identifier(param)
+        @record_cache[klass][param] = record
+        record
       end
     end
   end
