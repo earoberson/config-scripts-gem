@@ -9,6 +9,7 @@ module ConfigScripts
       attr_reader :attributes
       attr_reader :seed_params
       attr_reader :associations
+      attr_reader :scopes
 
       def initialize(seed_set, klass, filename, &block)
         @seed_set = seed_set
@@ -16,11 +17,14 @@ module ConfigScripts
         @filename = filename
         @attributes = []
         @seed_params = %i(id)
-        self.instance_eval(&block)
+        @scopes = []
+
         @associations = {}
         @klass.reflect_on_all_associations.each do |association|
           @associations[association.name] = association.klass
         end
+
+        self.instance_eval(&block)
       end
 
       def has_attributes(*new_attributes)
@@ -29,6 +33,10 @@ module ConfigScripts
 
       def has_seed_params(*params)
         @seed_params = params
+      end
+
+      def has_scope(&scope)
+        @scopes << scope
       end
 
       def write_to_folder(folder)
@@ -73,7 +81,9 @@ module ConfigScripts
       end
 
       def items
-        @klass.all
+        records = @klass.scoped
+        self.scopes.each { |scope| records = records.instance_eval(&scope) }
+        records
       end
 
       def seed_identifier_for_record(record)
