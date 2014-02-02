@@ -8,7 +8,7 @@ module ConfigScripts
       end
 
       def self.script_was_run?(timestamp)
-        self.entries_for_timestamps(timestamp).any?
+        self.entries_for_timestamp(timestamp).any?
       end
 
       def self.record_timestamp(timestamp)
