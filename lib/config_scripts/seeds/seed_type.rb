@@ -35,8 +35,8 @@ module ConfigScripts
         @seed_params = params
       end
 
-      def has_scope(&scope)
-        @scopes << scope
+      def has_scope(method, args)
+        @scopes << [method, args]
       end
 
       def write_to_folder(folder)
@@ -82,8 +82,12 @@ module ConfigScripts
 
       def items
         records = @klass.scoped
-        self.scopes.each { |scope| records = records.instance_eval(&scope) }
+        self.scopes.each { |method, args| records = records.send(method, args) }
         records
+      end
+
+      def options
+        self.seed_set.options
       end
 
       def seed_identifier_for_record(record)
