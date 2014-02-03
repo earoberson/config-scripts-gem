@@ -1,5 +1,6 @@
 require 'rails'
 module ConfigScripts
+  # This class provides a railtie for loading our rake tasks.
   class RakeTasksRailtie < Rails::Railtie
     railtie_name :config_sripts_rake_tasks
 
