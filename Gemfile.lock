@@ -1,0 +1,10 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    yard (0.8.7.3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  yard (= 0.8.7.3)

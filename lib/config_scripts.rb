@@ -1,3 +1,4 @@
+# This module groups encapsulates all of the code for the config_scripts gem.
 module ConfigScripts
 end
 

@@ -2,21 +2,68 @@ require 'csv'
 
 module ConfigScripts
   module Seeds
+    # This class encapsulates information about how to write seeds for a class
+    # to a seed file.
     class SeedType
+      # @!group Attributes
+
+      # @return [SeedSet]
+      # The seed set that this type has been defined within.
       attr_reader :seed_set
+
+      # @return [Class]
+      # The model class whose records we are storing in this seed file.
       attr_reader :klass
+
+      # @return [String]
+      # The name of the file that we will store these records in.
       attr_reader :filename
+
+      # @return [Array<Symbol>]
+      # The names of the attributes on the model object that we store in the
+      # seed file.
       attr_reader :attributes
-      attr_reader :seed_params
+
+      # @return [Array<Symbol>]
+      # The names of the attributes used to compose a unique identifier for
+      # a record.
+      attr_reader :identifier_attributes
+
+      # @return [Array]
+      # The active record associations for the model class for this seed file.
       attr_reader :associations
+
+      # @return [Array<Array>]
+      # The scopes that we apply when fetching items.
+      #
+      # Each entry will be an array. The first entry in the inner arrays will
+      # be a symbol, the name of a method that can be run on a relation. The 
+      # result of the array will be passed in when running the method on the
+      # scope.
       attr_reader :scopes
 
+      # @!group Creation
+
+      # This method creates a new seed type.
+      #
+      # This method should be given a block, which will be run in the instance
+      # context of the new seed type. That block should use the DSL methods to
+      # fill in the details for the seed type.
+      #
+      # @param [SeedSet] seed_set
+      #   The seed set that this seed type is defined within.
+      #
+      # @param [Class] klass
+      #   The model class whose data we are running.
+      #
+      # @param [String] filename
+      #   The name of the file in which the seed data will be stored.
       def initialize(seed_set, klass, filename, &block)
         @seed_set = seed_set
         @klass = klass
         @filename = filename
         @attributes = []
-        @seed_params = %i(id)
+        @identifier_attributes = %i(id)
         @scopes = []
 
         @associations = {}
@@ -27,18 +74,60 @@ module ConfigScripts
         self.instance_eval(&block)
       end
 
+      # @!group DSL
+
+      # This method adds new attributes to the ones written in this seed type.
+      #
+      # @param [Array<Symbol>] new_attributes
+      #   The attributes to add.
+      #
+      # @return [Array<Symbol>]
+      #   The full list of attributes after the new ones are added.
       def has_attributes(*new_attributes)
         @attributes += new_attributes
       end
 
-      def has_seed_params(*params)
-        @seed_params = params
+      # This method defines the attributes used to generate a unique identifier
+      # for a record.
+      #
+      # @param [Array<Symbol>] attributes
+      #   The attributes that form the unique identifier.
+      #
+      # @return [Array<Symbol>]
+      #   The attributes.
+      def has_identifier_attributes(*attributes)
+        @identifier_attributes = attributes
       end
 
+      # This method adds a scope to the list used to filter the records for
+      # writing.
+      #
+      # @param [Symbol] method
+      #   The name of the method to call on the relation.
+      #
+      # @param [Array] args
+      #   The arguments that will be passed into the scope method on the
+      #   relation.
+      #
+      # @return [Array]
+      #   The full list of scopes.
       def has_scope(method, args)
         @scopes << [method, args]
       end
 
+      # @!group Reading and Writing
+
+      # This method writes the seed data file to a folder.
+      #
+      # This will write a header row with the names of the attributes, and then
+      # write a row for each item from the {#items} method. It will use the
+      # {#write_value_for_attribute} method to get the values for the CSV file.
+      #
+      # If this seed type has no attributes, this method will not write
+      # anything.
+      #
+      # @param [String] folder
+      #   The full path to the folder to write to.
       def write_to_folder(folder)
         return unless attributes.any?
         CSV.open(File.join(folder, "#{self.filename}.csv"), 'w') do |csv|
@@ -50,6 +139,18 @@ module ConfigScripts
         end
       end
 
+      # This method reads the seed data from a file, and creates new records
+      # from it.
+      #
+      # This will extract all the rows from the CSV file, and use
+      # {#read_value_for_attribute} to get the attributes for the record from
+      # each cell in the CSV file.
+      #
+      # If this seed type has no attributes, this method will not try to read
+      # the file.
+      #
+      # @param [String] folder
+      #   The full path to the folder with the seed files.
       def read_from_folder(folder)
         return unless attributes.any?
         CSV.open(File.join(folder, "#{self.filename}.csv"), headers: true) do |csv|
@@ -65,14 +166,40 @@ module ConfigScripts
         end
       end
 
+      # This method gets the value that we should write into the CSV file for
+      # an attribute.
+      #
+      # If the value for that attribute is another model record, this will get
+      # its seed identifier from the seed set. Otherwise, it will just use the
+      # value.
+      #
+      # @param [ActiveRecord::Base] item
+      #   The record whose value we are getting.
+      #
+      # @param [Symbol] attribute
+      #   The attribute we are getting.
+      #
+      # @return [String]
+      #   The value to write.
       def write_value_for_attribute(item, attribute)
         value = item.send(attribute)
         if value.is_a?(ActiveRecord::Base)
-          value = self.seed_set.seed_param_for_record(value)
+          value = self.seed_set.seed_identifier_for_record(value)
         end
         value
       end
 
+      # This method takes a value from the CSV file and gives back the value
+      # that should be set on the record.
+      #
+      # @param [String] value
+      #   The value from the CSV file.
+      #
+      # @param [Symbol] attribute
+      #   The name of the attribute that we are formatting.
+      #
+      # @return [Object]
+      #   The value to set on the record.
       def read_value_for_attribute(value, attribute)
         if @associations[attribute]
           value = self.seed_set.record_for_seed_identifier(@associations[attribute], value)
@@ -80,24 +207,54 @@ module ConfigScripts
         value
       end
 
+      # @!group Fetching
+
+      # This method gets the items that we should write to our seed file.
+      #
+      # It will start with the scoped list for the model class, and then apply
+      # all the scopes in our {#scopes} list.
+      #
+      # @return [Relation]
       def items
         records = @klass.scoped
         self.scopes.each { |method, args| records = records.send(method, args) }
         records
       end
 
+      # This method gets the additional information passed in when defining our
+      # seed set.
+      #
+      # @return [Hash]
       def options
         self.seed_set.options
       end
 
+      # @!group Seed Identifiers
+
+      # This method gets the unique identifier for a record of the class that
+      # this seed type handles.
+      #
+      # @param [ActiveRecord::Base] record
+      #   The record
+      #
+      # @return [String]
+      #   The identifier for the seed files.
       def seed_identifier_for_record(record)
-        self.seed_params.collect { |param| self.write_value_for_attribute(record, param) }.join("::")
+        self.identifier_attributes.collect { |param| self.write_value_for_attribute(record, param) }.join("::")
       end
 
+      # This method finds a record for our model class based on the unique seed
+      # identifier.
+      #
+      # @param [String] identifier
+      #   The identifier from the CSV file.
+      #
+      # @return [ActiveRecord::Base]
+      #   The record
       def record_for_seed_identifier(identifier)
         records = self.klass.scoped
         values = identifier.split("::")
-        self.seed_params.each_with_index do |attribute, index|
+        self.identifier_attributes.each_with_index do |attribute, index|
           value = values[index]
           if self.associations[attribute]
             association_record = self.seed_set.record_for_seed_identifier(@associations[attribute], value)

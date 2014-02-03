@@ -1,4 +1,5 @@
 module ConfigScripts
+  # This module encapsulates code for reading and writing seed data.
   module Seeds
   end
 end
