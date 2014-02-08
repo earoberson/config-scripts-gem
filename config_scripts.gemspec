@@ -1,12 +1,28 @@
-Gem::Specification.new do |s|
-  s.name        = 'config_scripts'
-  s.version     = '0.2.0'
-  s.date        = '2014-02-22'
-  s.summary     = "Library for creating trackable config scripts, and reading and writing seed files"
-  s.description = "Config scripts and seed files for rails"
-  s.authors     = ["John Brownlee"]
-  s.email       = 'apps@johnbrownlee.com'
-  s.files       = ["lib/config_scripts.rb"]
-  s.homepage    = 'http://apps.johnbrownlee.com'
-  s.license     = 'MIT'
+# coding: utf-8
+lib = File.expand_path('../lib', __FILE__)
+$LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
+require 'config_scripts/version'
+
+Gem::Specification.new do |spec|
+  spec.name          = "config_scripts"
+  spec.version       = ConfigScripts::VERSION
+  spec.authors       = ["John Brownlee"]
+  spec.email         = ["john@brownleemail.com"]
+  spec.description   =  "Library for creating trackable config scripts, and reading and writing seed data into spreadsheets"
+  spec.summary       = "Config scripts and seed files for Rails"
+  spec.license       = "MIT"
+
+  spec.files         = ["lib/config_scripts.rb"]
+  spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }
+  spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
+  spec.require_paths = ["lib"]
+
+  spec.add_dependency "rails", "> 3.0.0"
+
+  spec.add_development_dependency "bundler", "~> 1.3"
+  spec.add_development_dependency "rake"
+  spec.add_development_dependency "rspec"
+  spec.add_development_dependency "yard"
+  spec.add_development_dependency "simplecov"
+  spec.add_development_dependency 'sqlite3'
 end

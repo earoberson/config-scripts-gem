@@ -2,7 +2,7 @@ module ConfigScripts
   module Scripts
     # This class models a record of a script being run.
     #
-    # This uses the +config_scripts+ table to record it histories.
+    # This uses the +config_scripts+ table to record its histories.
     class ScriptHistory < ActiveRecord::Base
       self.table_name = 'config_scripts'
 
