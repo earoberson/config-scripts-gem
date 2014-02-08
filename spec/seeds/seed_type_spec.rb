@@ -51,6 +51,29 @@ describe ConfigScripts::Seeds::SeedType do
         ]
       end
     end
+
+    describe "when_writing" do
+      before do
+        seed_type.when_writing :name do |person|
+          person.name.upcase
+        end
+      end
+
+      it "adds a proc to the dynamic_writers hash" do
+        expect(seed_type.dynamic_writers[:name]).not_to be_nil
+      end
+    end
+
+    describe "when_reading" do
+      before do
+        seed_type.when_reading :name do |person|
+        end
+      end
+
+      it "adds a proc to the dynamic_readers hash" do
+        expect(seed_type.dynamic_readers[:name]).not_to be_nil
+      end
+    end
   end
 
   describe "reading and writing" do
@@ -183,6 +206,19 @@ describe ConfigScripts::Seeds::SeedType do
         seed_set.stub seed_identifier_for_record: identifier
       end
 
+      context "with a dynamic writer" do
+        let(:attribute) { :name }
+        before do
+          seed_type.when_writing :name do |person|
+            person.name.upcase
+          end
+        end
+
+        it "runs the block on the record, and uses the result" do
+          expect(subject).to eq "JANE DOE"
+        end
+      end
+
       context "with an ActiveRecord" do
         let(:attribute) { :hair_color }
         it "returns the seed identifier from the seed set" do
@@ -201,7 +237,7 @@ describe ConfigScripts::Seeds::SeedType do
     end
 
     describe "read_value_for_attribute" do
-      let(:value) { double }
+      let(:value) { 'value' }
       let(:color) { HairColor.create }
       subject { seed_type.read_value_for_attribute(value, attribute) }
 
@@ -215,6 +251,20 @@ describe ConfigScripts::Seeds::SeedType do
         it "gets the record from the seed set" do
           expect(subject).to eq color
           expect(seed_set).to have_received(:record_for_seed_identifier).with(HairColor, value)
+        end
+      end
+
+      context "with a dynamic reader" do
+        let(:attribute) { :name }
+
+        before do
+          seed_type.when_reading :name do |value|
+            value + "2"
+          end
+        end
+
+        it "runs the block on the value and uses the result" do
+          expect(subject).to eq "value2"
         end
       end
 

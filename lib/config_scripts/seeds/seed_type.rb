@@ -33,6 +33,16 @@ module ConfigScripts
       # The active record associations for the model class for this seed file.
       attr_reader :associations
 
+      # @return [Hash<Symbol, Proc>]
+      # The attributes that we generate dynamically after loading the ones from
+      # the seed file.
+      attr_reader :dynamic_readers
+
+      # @return [Hash<Symbol, Proc>]
+      # The attributes that we generate dynamically when writing things to the
+      # seed file.
+      attr_reader :dynamic_writers
+
       # @return [Array<Array>]
       # The scopes that we apply when fetching items.
       #
@@ -63,12 +73,14 @@ module ConfigScripts
         @klass = klass
         @filename = filename
         @attributes = []
-        @identifier_attributes = %i(id)
+        @identifier_attributes = [:id]
         @scopes = []
+        @dynamic_writers = {}
+        @dynamic_readers = {}
 
         @associations = {}
         @klass.reflect_on_all_associations.each do |association|
-          @associations[association.name] = association.klass
+          @associations[association.name] = association.klass rescue nil
         end
 
         self.instance_eval(&block) if block_given?
@@ -113,6 +125,32 @@ module ConfigScripts
       #   The full list of scopes.
       def has_scope(method, *args)
         @scopes << [method, args]
+      end
+
+      # This method registers a custom block that will be run when reading a
+      # value from the seed file.
+      #
+      # This method takes a block that will be run on the value from the seed
+      # file. The return value of the block will be used in place of the
+      # original value from the seed file.
+      #
+      # @param [Symbol] attribute
+      #   The attribute that we are reading.
+      def when_reading(attribute, &block)
+        @dynamic_readers[attribute] = block
+      end
+
+      # This method registers a custom block that will be run when writing a
+      # value to the seed file.
+      #
+      # This method takes a block that will be run on the item whose values we
+      # are writing. The return value of the block will be used instead of
+      # running the method on the record.
+      #
+      # @param [Symbol] attribute
+      #   The attribute we are writing.
+      def when_writing(attribute, &block)
+        @dynamic_writers[attribute] = block
       end
 
       # @!group Reading and Writing
@@ -182,7 +220,12 @@ module ConfigScripts
       # @return [String]
       #   The value to write.
       def write_value_for_attribute(item, attribute)
-        value = item.send(attribute)
+        if @dynamic_writers[attribute]
+          value = @dynamic_writers[attribute].call(item)
+        else
+          value = item.send(attribute)
+        end
+
         if value.is_a?(ActiveRecord::Base)
           value = self.seed_set.seed_identifier_for_record(value)
         end
@@ -201,6 +244,10 @@ module ConfigScripts
       # @return [Object]
       #   The value to set on the record.
       def read_value_for_attribute(value, attribute)
+        if @dynamic_readers[attribute]
+          value = @dynamic_readers[attribute].call(value)
+        end
+
         if @associations[attribute]
           value = self.seed_set.record_for_seed_identifier(@associations[attribute], value)
         end
@@ -262,6 +309,7 @@ module ConfigScripts
       # @return [ActiveRecord::Base]
       #   The record
       def record_for_seed_identifier(identifier)
+        return nil if identifier.blank?
         records = self.all
         values = identifier.split("::")
         self.identifier_attributes.each_with_index do |attribute, index|
