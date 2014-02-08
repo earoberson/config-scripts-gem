@@ -11,3 +11,6 @@ spec/dummy/log/*.log
 
 # tmp files creating from specs
 tmp/
+
+# Package gem files
+pkg/
