@@ -99,7 +99,7 @@ module ConfigScripts
         @order = order
         @options = options
         @seed_types = {}
-        self.instance_eval(&block)
+        self.instance_eval(&block) if block_given?
         ConfigScripts::Seeds::SeedSet.register_seed_set(self)
       end
 
@@ -156,6 +156,23 @@ module ConfigScripts
 
       # @!group Seed Identifiers
 
+      # This method gets a seed type that we have on file for a class.
+      #
+      # @param [Class] klass
+      #   The class whose seeds we are dealing with.
+      #
+      # @return [SeedType]
+      def seed_type_for_class(klass)
+        while klass && klass != ActiveRecord::Base
+          seed_type = self.seed_types[klass]
+          if seed_type
+            return seed_type
+          end
+          klass = klass.superclass
+        end
+      end
+
+
       # This method gets a unique identifier for a record when writing seeds
       # that refer to it.
       #
@@ -169,15 +186,12 @@ module ConfigScripts
       #
       # @return [String]
       def seed_identifier_for_record(record)
-        klass = record.class
-        while klass != ActiveRecord::Base
-          seed_type = self.seed_types[klass]
-          if seed_type
-            return seed_type.seed_identifier_for_record(record)
-          end
-          klass = klass.superclass
+        seed_type = self.seed_type_for_class(record.class)
+        if seed_type
+          seed_type.seed_identifier_for_record(record)
+        else
+          record.id rescue nil
         end
-        record.id
       end
 
       # This method finds a record based on a unique identifier in the seed
@@ -197,16 +211,17 @@ module ConfigScripts
       #
       # @return [ActiveRecord::Base]
       #   The model record.
-      #
-      # @todo Add handling of missing seed types, and seed types for
-      #   superclasses.
       def record_for_seed_identifier(klass, identifier)
         @record_cache ||= {}
         @record_cache[klass] ||= {}
         record = @record_cache[klass][identifier]
         return record if record
-        record = self.seed_types[klass].record_for_seed_identifier(identifier)
-        @record_cache[klass][identifier] = record
+
+        seed_type = self.seed_type_for_class(klass)
+        if seed_type
+          record = seed_type.record_for_seed_identifier(identifier)
+          @record_cache[klass][identifier] = record
+        end
         record
       end
     end

@@ -11,16 +11,25 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20140208161829) do
+ActiveRecord::Schema.define(version: 20140208182101) do
 
   create_table "config_scripts", force: true do |t|
     t.string "name"
+  end
+
+  create_table "hair_colors", force: true do |t|
+    t.string   "color"
+    t.datetime "created_at"
+    t.datetime "updated_at"
   end
 
   create_table "people", force: true do |t|
     t.string   "name"
     t.datetime "created_at"
     t.datetime "updated_at"
+    t.integer  "hair_color_id"
   end
+
+  add_index "people", ["hair_color_id"], name: "index_people_on_hair_color_id"
 
 end
