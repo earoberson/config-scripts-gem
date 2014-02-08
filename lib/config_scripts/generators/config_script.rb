@@ -16,8 +16,8 @@ module ConfigScripts
     #
     # @return [Nil]
     def config_script
-      filename = name.underscore
-      path = "db/config_scripts/#{Time.now.to_s(:number)}_#{filename}.rb"
+      path = "db/config_scripts/#{Time.now.to_s(:number)}_#{self.file_name}.rb"
+      Rails.logger.debug "JPB creating config script: #{path}"
       template "config_script.rb", path, {name: name}
       nil
     end
