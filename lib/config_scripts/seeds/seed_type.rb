@@ -71,7 +71,7 @@ module ConfigScripts
           @associations[association.name] = association.klass
         end
 
-        self.instance_eval(&block)
+        self.instance_eval(&block) if block_given?
       end
 
       # @!group DSL
@@ -111,7 +111,7 @@ module ConfigScripts
       #
       # @return [Array]
       #   The full list of scopes.
-      def has_scope(method, args)
+      def has_scope(method, *args)
         @scopes << [method, args]
       end
 
@@ -209,6 +209,16 @@ module ConfigScripts
 
       # @!group Fetching
 
+      # This method gets a relation encompassing all the records in the class.
+      #
+      # We encapsulate this here so that we can use different calls in Rails 3
+      # and Rails 4.
+      #
+      # @return [Relation]
+      def all
+        version = Rails.version[0]
+        records = version == '3' ? self.klass.scoped : self.klass.all
+      end
       # This method gets the items that we should write to our seed file.
       #
       # It will start with the scoped list for the model class, and then apply
@@ -216,8 +226,8 @@ module ConfigScripts
       #
       # @return [Relation]
       def items
-        records = @klass.scoped
-        self.scopes.each { |method, args| records = records.send(method, args) }
+        records = self.all
+        self.scopes.each { |method, args| records = records.send(method, *args) }
         records
       end
 
@@ -252,7 +262,7 @@ module ConfigScripts
       # @return [ActiveRecord::Base]
       #   The record
       def record_for_seed_identifier(identifier)
-        records = self.klass.scoped
+        records = self.all
         values = identifier.split("::")
         self.identifier_attributes.each_with_index do |attribute, index|
           value = values[index]
