@@ -30,11 +30,7 @@ module ConfigScripts
     # @param [String] filename
     #   The name of the file in the templates directory.
     def copy_migration(filename)
-      if self.class.migration_exists?("db/migrate", "#{filename}")
-        say_status("skipped", "Migration #{filename}.rb already exists")
-      else
-        migration_template "#{filename}_migration.rb", "db/migrate/#{filename}.rb"
-      end
+      migration_template "#{filename}_migration.rb", "db/migrate/#{filename}.rb"
     end
   end
 end

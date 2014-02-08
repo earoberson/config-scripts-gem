@@ -8,3 +8,6 @@ doc/coverage
 # Files from Dummy App for Specs
 spec/dummy/db/*.sqlite3
 spec/dummy/log/*.log
+
+# tmp files creating from specs
+tmp/
