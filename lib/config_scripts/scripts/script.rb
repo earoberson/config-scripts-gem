@@ -48,7 +48,6 @@ module ConfigScripts
           end
           puts "Running #{filename}"
           success = klass.new(timestamp).run(:up)
-          return unless success
         end
         true
       end
@@ -66,6 +65,10 @@ module ConfigScripts
       end
 
       # @!group Running
+
+      # @return [String]
+      # The timestamp for this instance of the script.
+      attr_accessor :timestamp
 
       # This method performs the changes for this config script.
       #
