@@ -1,3 +1,10 @@
 # YARD Documentation 
 .yardoc
 doc/code
+
+# Simplecov Code Coverage
+doc/coverage
+
+# Files from Dummy App for Specs
+spec/dummy/db/*.sqlite3
+spec/dummy/log/*.log
