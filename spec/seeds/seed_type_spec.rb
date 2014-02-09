@@ -22,7 +22,7 @@ describe ConfigScripts::Seeds::SeedType do
       end
 
       it "records the associations for the model" do
-        expect(subject.associations).to eq hair_color: HairColor
+        expect(subject.associations).to eq hair_color: HairColor, scope: nil
       end
     end
 
@@ -197,9 +197,9 @@ describe ConfigScripts::Seeds::SeedType do
     end
 
     describe "write_value_for_attribute" do
-      let(:identifier) { double }
+      let(:identifier) { "foo" }
       let(:color) { HairColor.create }
-      let(:person) { Person.create(hair_color: color, name: 'Jane Doe')}
+      let(:person) { Person.create(hair_color: color, name: 'Jane Doe', scope: color)}
       subject { seed_type.write_value_for_attribute(person, attribute) }
 
       before do
@@ -219,10 +219,19 @@ describe ConfigScripts::Seeds::SeedType do
         end
       end
 
-      context "with an ActiveRecord" do
+      context "with an association" do
         let(:attribute) { :hair_color }
         it "returns the seed identifier from the seed set" do
           expect(subject).to eq identifier
+          expect(seed_set).to have_received(:seed_identifier_for_record).with(color)
+        end
+      end
+
+      context "with a polymorphic association" do
+        let(:attribute) { :scope }
+
+        it "returns the seed identifier from the seed set, with a class prefix" do
+          expect(subject).to eq "HairColor::#{identifier}"
           expect(seed_set).to have_received(:seed_identifier_for_record).with(color)
         end
       end
@@ -237,7 +246,7 @@ describe ConfigScripts::Seeds::SeedType do
     end
 
     describe "read_value_for_attribute" do
-      let(:value) { 'value' }
+      let(:value) { 'my::value' }
       let(:color) { HairColor.create }
       subject { seed_type.read_value_for_attribute(value, attribute) }
 
@@ -250,7 +259,17 @@ describe ConfigScripts::Seeds::SeedType do
 
         it "gets the record from the seed set" do
           expect(subject).to eq color
-          expect(seed_set).to have_received(:record_for_seed_identifier).with(HairColor, value)
+          expect(seed_set).to have_received(:record_for_seed_identifier).with(HairColor, ['my', 'value'])
+        end
+      end
+
+      context "with a polymorphic association" do
+        let(:attribute) { :scope }
+        let(:value) { "HairColor::my::value" }
+
+        it "gets the record from the seed set" do
+          expect(subject).to eq color
+          expect(seed_set).to have_received(:record_for_seed_identifier).with(HairColor, ['my', 'value'])
         end
       end
 
@@ -264,7 +283,7 @@ describe ConfigScripts::Seeds::SeedType do
         end
 
         it "runs the block on the value and uses the result" do
-          expect(subject).to eq "value2"
+          expect(subject).to eq "my::value2"
         end
       end
 
@@ -273,6 +292,32 @@ describe ConfigScripts::Seeds::SeedType do
 
         it "returns the value" do
           expect(subject).to eq value
+        end
+      end
+    end
+
+    describe "read_value_for_association" do
+      let(:color) { HairColor.create }
+
+      before do
+        seed_set.stub record_for_seed_identifier: color
+      end
+
+      context "with a normal association" do
+        subject { seed_type.read_value_for_association(:hair_color, ['red', 'FF0000']) }
+
+        it "gets the record from the seed set" do
+          expect(subject).to eq color
+          expect(seed_set).to have_received(:record_for_seed_identifier).with(HairColor, ['red', 'FF0000'])
+        end
+      end
+
+      context "with a polymorphic association" do
+        subject { seed_type.read_value_for_association(:scope, ['HairColor', 'blonde', 'FFD700']) }
+
+        it "extracts the class from the identifier and uses the seed set to get the record" do
+          expect(subject).to eq color
+          expect(seed_set).to have_received(:record_for_seed_identifier).with(HairColor, ['blonde', 'FFD700'])
         end
       end
     end
@@ -318,9 +363,9 @@ describe ConfigScripts::Seeds::SeedType do
     end
 
     describe "record_for_seed_identifier" do
-      let!(:color1) { HairColor.create(color: 'brown') }
-      let!(:color2) { HairColor.create(color: 'red') }
-      let!(:color3) { HairColor.create(color: 'blonde') }
+      let!(:color1) { HairColor.create(color: 'brown', hex_value: '964B00') }
+      let!(:color2) { HairColor.create(color: 'red', hex_value: 'FF0000') }
+      let!(:color3) { HairColor.create(color: 'blonde', hex_value: 'FFD700') }
 
       let!(:person1) { Person.create(hair_color: color1, name: 'John') }
       let!(:person2) { Person.create(hair_color: color3, name: 'Jane') }
@@ -328,15 +373,66 @@ describe ConfigScripts::Seeds::SeedType do
       let!(:person4) { Person.create(hair_color: color2, name: 'John') }
       let!(:person5) { Person.create(hair_color: color2, name: 'Jane') }
 
-      subject { seed_type.record_for_seed_identifier('brown::Jane') }
+      subject { seed_type.record_for_seed_identifier(identifier) }
 
-      before do
-        seed_type.has_identifier_attributes :hair_color, :name
-        seed_set.stub(:record_for_seed_identifier).with(HairColor, 'brown').and_return(color1)
+      context "with an single-field reference to another record" do
+        let(:identifier) { ['brown', 'Jane'] }
+
+        before do
+          seed_type.has_identifier_attributes :hair_color, :name
+          seed_set.seeds_for HairColor do
+            has_identifier_attributes :color
+          end
+        end
+
+        it "finds a record matching all the parts of the seed identifier" do
+          expect(subject).to eq person3
+        end
+
+        it "removes all the keys from the identifier" do
+          subject
+          expect(identifier).to eq []
+        end
       end
 
-      it "finds a record matching all the parts of the seed identifier" do
-        expect(subject).to eq person3
+      context "with a multi-field reference to another record" do
+        let(:identifier) { ['red','FF0000','John'] }
+
+        before do
+          seed_type.has_identifier_attributes :hair_color, :name
+          seed_set.seeds_for HairColor do
+            has_identifier_attributes :color, :hex_value
+          end
+        end
+
+        it "finds a record matching all the parts of the seed identifier" do
+          expect(subject).to eq person4
+        end
+
+        it "removes all the keys from the identifier" do
+          subject
+          expect(identifier).to eq []
+        end
+      end
+
+      context "with more fields in the identifier than it needs" do
+        let(:identifier) { ['red','FF0000','John', 'test'] }
+
+        before do
+          seed_type.has_identifier_attributes :hair_color, :name
+          seed_set.seeds_for HairColor do
+            has_identifier_attributes :color, :hex_value
+          end
+        end
+
+        it "finds a record matching all the parts of the seed identifier" do
+          expect(subject).to eq person4
+        end
+
+        it "removes all the keys it needs from the identifier" do
+          subject
+          expect(identifier).to eq ['test']
+        end
       end
     end
   end

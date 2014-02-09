@@ -207,11 +207,17 @@ describe ConfigScripts::Seeds::SeedSet do
     end
 
     describe "record_for_seed_identifier" do
-      let(:record) { double }
+      let(:record) { Person.create }
+      let(:identifier) { ['red', 'John'] }
       subject { set.record_for_seed_identifier(klass, identifier) }
 
       before do
-        seed_type.stub record_for_seed_identifier: record
+        seed_type.stub :record_for_seed_identifier do |identifier|
+          identifier.shift
+          identifier.shift
+          record
+        end
+        seed_type.has_identifier_attributes :hair_color, :name
       end
 
       context "for a class it has seed types for" do
@@ -222,8 +228,9 @@ describe ConfigScripts::Seeds::SeedSet do
         end
 
         it "caches the result" do
+          identifier2 = identifier.dup
           subject
-          set.record_for_seed_identifier(klass, identifier)
+          set.record_for_seed_identifier(klass, identifier2)
           expect(seed_type).to have_received(:record_for_seed_identifier).once
         end
       end
@@ -236,9 +243,34 @@ describe ConfigScripts::Seeds::SeedSet do
         end
 
         it "caches the result" do
+          identifier2 = identifier.dup
           subject
-          set.record_for_seed_identifier(klass, identifier)
+          set.record_for_seed_identifier(klass, identifier2)
           expect(seed_type).to have_received(:record_for_seed_identifier).once
+        end
+      end
+
+      context "with an identifier that has more keys than needed" do
+        let(:klass) { Person }
+        let(:identifier) { ['red', 'John', 'Smith'] }
+
+        it "only caches it with the keys needed" do
+          subject
+          set.record_for_seed_identifier(klass, ['red', 'John'])
+          expect(seed_type).to have_received(:record_for_seed_identifier).once
+        end
+
+        it "removes the keys it needs from the identifier" do
+          subject
+          expect(identifier).to eq ['Smith']
+        end
+
+        it "removes the keys it needs even on a cache hit" do
+          identifier2 = identifier.dup
+          subject
+          set.record_for_seed_identifier(klass, identifier2)
+          expect(seed_type).to have_received(:record_for_seed_identifier).once
+          expect(identifier2).to eq ['Smith']
         end
       end
 

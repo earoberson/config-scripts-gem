@@ -211,6 +211,9 @@ module ConfigScripts
       # its seed identifier from the seed set. Otherwise, it will just use the
       # value.
       #
+      # If the attribute is a polymorphic foreign key, this will prefix the seed
+      # identifier with the class name.
+      #
       # @param [ActiveRecord::Base] item
       #   The record whose value we are getting.
       #
@@ -227,13 +230,21 @@ module ConfigScripts
         end
 
         if value.is_a?(ActiveRecord::Base)
-          value = self.seed_set.seed_identifier_for_record(value)
+          identifier = self.seed_set.seed_identifier_for_record(value)
+          if !self.associations[attribute]
+            identifier = "#{value.class.name}::#{identifier}"
+          end
+          value = identifier
         end
         value
       end
 
       # This method takes a value from the CSV file and gives back the value
       # that should be set on the record.
+      #
+      # If the attribute is an association, this will pass it to the seed set
+      # as a seed identifier. If it is a polymorphic association, it will use
+      # the first part of the seed identifier as a class name.
       #
       # @param [String] value
       #   The value from the CSV file.
@@ -248,10 +259,33 @@ module ConfigScripts
           value = @dynamic_readers[attribute].call(value)
         end
 
-        if @associations[attribute]
-          value = self.seed_set.record_for_seed_identifier(@associations[attribute], value)
+        if @associations.has_key?(attribute)
+          return nil if value.blank?
+          value = self.read_value_for_association(attribute, value.split("::"))
         end
         value
+      end
+
+      # This method gets the value that we will assign to an attribute for an
+      # association.
+      #
+      # This will remove as many entries from the identifier as it needs to get
+      # the value.
+      #
+      # @param [Symbol] attribute
+      #   The name of the association.
+      #
+      # @param [Array<String>] identifier
+      #   The components of the seed identifier.
+      #
+      # @return [ActiveRecord::Base]
+      def read_value_for_association(attribute, identifier)
+        klass = @associations[attribute]
+        unless klass
+          class_name = identifier.shift
+          klass = class_name.constantize
+        end
+        value = self.seed_set.record_for_seed_identifier(klass, identifier)
       end
 
       # @!group Fetching
@@ -303,7 +337,7 @@ module ConfigScripts
       # This method finds a record for our model class based on the unique seed
       # identifier.
       #
-      # @param [String] identifier
+      # @param [Array<String>] identifier
       #   The identifier from the CSV file.
       #
       # @return [ActiveRecord::Base]
@@ -311,13 +345,12 @@ module ConfigScripts
       def record_for_seed_identifier(identifier)
         return nil if identifier.blank?
         records = self.all
-        values = identifier.split("::")
         self.identifier_attributes.each_with_index do |attribute, index|
-          value = values[index]
-          if self.associations[attribute]
-            association_record = self.seed_set.record_for_seed_identifier(@associations[attribute], value)
-            records = records.where(attribute => association_record)
+          if self.associations.has_key?(attribute)
+            value = self.read_value_for_association(attribute, identifier)
+            records = records.where("#{attribute}_id" => value.try(:id))
           else
+            value = self.read_value_for_attribute(identifier.shift, attribute)
             records = records.where(attribute => value)
           end
         end

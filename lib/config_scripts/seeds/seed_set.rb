@@ -206,21 +206,38 @@ module ConfigScripts
       # @param [Class] klass
       #   The model class for the record we are finding.
       #
-      # @param [String] identifier
-      #   The identifier from the seed data.
+      # @param [Array<String>] identifier
+      #   The identifier components from the seed data.
       #
       # @return [ActiveRecord::Base]
       #   The model record.
       def record_for_seed_identifier(klass, identifier)
+        seed_type = self.seed_type_for_class(klass)
+        return nil unless seed_type
+
         @record_cache ||= {}
         @record_cache[klass] ||= {}
-        record = @record_cache[klass][identifier]
-        return record if record
 
-        seed_type = self.seed_type_for_class(klass)
+        cache_identifier = identifier.dup
+
+        while cache_identifier.any?
+          record = @record_cache[klass][cache_identifier]
+          if record
+            cache_identifier.count.times { identifier.shift }
+            return record
+          end
+          cache_identifier.pop
+        end
+
         if seed_type
+          cache_identifier = identifier.dup
           record = seed_type.record_for_seed_identifier(identifier)
-          @record_cache[klass][identifier] = record
+
+          if identifier.any?
+            cache_identifier = cache_identifier[0...-1*identifier.count]
+          end
+
+          @record_cache[klass][cache_identifier] = record
         end
         record
       end
