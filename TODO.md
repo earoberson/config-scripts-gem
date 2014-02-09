@@ -2,7 +2,6 @@
 
 * Rolling back scripts
 * Generators for seed directories
-* Selectively running seed sets
 
 ### Gem Preparation
 
