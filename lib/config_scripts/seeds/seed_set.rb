@@ -9,10 +9,13 @@ module ConfigScripts
       attr_reader :name
 
       # @return [Integer]
-      # The order in which this seed set should be run.
-      # Seed sets will be run from the one with the lowest order to the
-      # highest.
-      attr_reader :order
+      # A number identifying this set. Seed sets will be run from the one with
+      # the lowest number to the highest.
+      attr_accessor :set_number
+
+      # @return [String]
+      # The name of the folder to which we will write the seeds.
+      attr_reader :folder
 
       # @return [Hash]
       # Arbitrary extra data passed in when defining the seed set.
@@ -23,22 +26,41 @@ module ConfigScripts
       # to handle seeds for that class within this set.
       attr_reader :seed_types
 
+      # @return [Proc]
+      # The block that will be run when resetting the records during a load.
+      attr_reader :reset_block
+
       class << self
         # @!group Registration
 
-        # @return [Array<SeedSet>]
+        # @return [Hash<Integer, SeedSet>]
         # The seed sets that have been defined.
         attr_reader :registered_sets
 
         # This method adds a new seed set to our registry.
         #
+        # If there is already a registered seed set with this set's set_number,
+        # the number will be incremented until it is available.
+        #
         # @param [SeedSet] set
         #   The new seed set.
         #
-        # @return [Array<SeedSet>]
+        # @return [SeedSet]
         def register_seed_set(set)
-          @registered_sets ||= []
-          @registered_sets << set
+          @registered_sets ||= {}
+          while @registered_sets[set.set_number]
+            return if @registered_sets[set.set_number] == set
+            set.set_number += 1
+          end
+          @registered_sets[set.set_number] = set
+        end
+
+        # This method wipes out our records of registered seed sets.
+        #
+        # @return [Hash]
+        #   The new list of seed sets.
+        def clear_registered_sets
+          @registered_sets = {}
         end
 
         # This method loads all of the seed definitions from the files in the
@@ -53,28 +75,55 @@ module ConfigScripts
 
         # This method writes the data for every seed set to its seed data
         # folder.
+        #
+        # @param [Integer] set_number
+        #   The number of the set to write.
+        #
         # @return [Array]
-        def write
-          self.each_set(&:write)
+        def write(set_number=nil)
+          self.each_set(set_number, &:write)
         end
 
         # This method loads the data from every seed set into the database.
+        #
+        # @param [Integer] set_number
+        #   The number of the set to read.
+        #
         # @return [Array]
-        def read
-          self.each_set(&:read)
+        def read(set_number=nil)
+          self.each_set set_number do |set|
+            set.read(set_number.present?)
+          end
+        end
+
+        # This method lists every seed set, with its set number.
+        # @return [Array]
+        def list
+          self.each_set do |set|
+            puts "#{set.set_number}: #{set.name}"
+          end
         end
 
         # This method runs a block on each set that the app has defined.
         #
         # The block will be given one parameter, which is the seed set.
         #
+        # @param [String] set_number
+        #   The number of the set that we should run.
+        #
         # @return [Array]
-        def each_set(&block)
-          @registered_sets ||= []
+        def each_set(set_number=nil, &block)
+          @registered_sets ||= {}
           self.load_seed_sets
-          self.registered_sets.sort do |set1, set2|
-            set1.order <=> set2.order
-          end.each(&block)
+          if set_number
+            if self.registered_sets[set_number]
+              block.call(self.registered_sets[set_number])
+            end
+          else
+            self.registered_sets.keys.sort.each do |set_number|
+              block.call(self.registered_sets[set_number])
+            end
+          end
         end
       end
 
@@ -88,15 +137,20 @@ module ConfigScripts
       # @param [String] name
       #   The name for the folder for the seeds.
       #
-      # @param [Integer] order
-      #   The order in which this seed set should be run.
+      # @param [Integer] set_number
+      #   The set_number in which this seed set should be run.
+      #
+      # @param [String] folder
+      #   The folder that we should use for this seed set. If this is not
+      #   provided, we will use the name.
       #
       # @param [Hash] options
       #   Additional information that can be made accessible to the seed type
       #   definitions.
-      def initialize(name, order, options = {}, &block)
+      def initialize(name, set_number=1, folder=nil, options = {}, &block)
         @name = name.to_s
-        @order = order
+        @set_number = set_number
+        @folder = folder || @name
         @options = options
         @seed_types = {}
         self.instance_eval(&block) if block_given?
@@ -110,27 +164,37 @@ module ConfigScripts
       # It will create the folder and then write the file for each seed type
       # that has been defined.
       def write
-        folder = Rails.root.join('db', 'seeds', 'data', self.name)
-        FileUtils.mkdir_p(folder)
-        puts "Writing seeds to #{folder}"
+        folder_path = Rails.root.join('db', 'seeds', 'data', self.folder)
+        FileUtils.mkdir_p(folder_path)
+        puts "Writing seeds for #{self.name} to #{folder_path}"
         self.seed_types.each do |klass, seed_type|
-          seed_type.write_to_folder(folder)
+          seed_type.write_to_folder(folder_path)
         end
       end
 
       # This method reads the data for this seed set from its seed folder.
       #
+      # @param [Boolean] reset
+      #   Whether we should reset the existing records before loading the seeds.
+      #
       # It will load the data for each seed type's file, enclosing all the
       # seed types in a transaction block.
-      def read
-        folder = Rails.root.join('db', 'seeds', 'data', self.name)
-        FileUtils.mkdir_p(folder)
-        puts "Reading seeds from #{folder}"
+      def read(reset=false)
+        folder_path = Rails.root.join('db', 'seeds', 'data', self.folder)
+        FileUtils.mkdir_p(folder_path)
+        puts "Reading seeds for #{self.name} from #{folder_path}"
         ActiveRecord::Base.transaction do
+          self.reset_records if reset
           self.seed_types.each do |klass, seed_type|
-            seed_type.read_from_folder(folder)
+            seed_type.read_from_folder(folder_path)
           end
         end
+      end
+
+      # This method resets all the existing records that could be populated by
+      # this seed set.
+      def reset_records
+        self.reset_block.call if self.reset_block
       end
 
       # @!group DSL
@@ -152,6 +216,17 @@ module ConfigScripts
       def seeds_for(klass, filename=nil, &block)
         filename ||= klass.name.underscore.pluralize
         @seed_types[klass] = SeedType.new(self, klass, filename, &block)
+      end
+
+      # This method defines a block that will be run when resetting existing
+      # records.
+      #
+      # This block will be run when loading a seed set as a one-off, but not
+      # when loading all the seed sets.
+      #
+      # @return [Proc]
+      def when_resetting(&block)
+        @reset_block = block
       end
 
       # @!group Seed Identifiers

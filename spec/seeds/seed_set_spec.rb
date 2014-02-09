@@ -2,10 +2,22 @@ describe ConfigScripts::Seeds::SeedSet do
   let(:klass) { ConfigScripts::Seeds::SeedSet }
   describe "loading" do
     describe "register_seed_set" do
+      before do
+        klass.clear_registered_sets
+      end
+
       it "adds the seed set to the class list" do
-        seed_set = double
+        seed_set = double(set_number: 1)
         klass.register_seed_set(seed_set)
-        expect(klass.registered_sets).to include seed_set
+        expect(klass.registered_sets).to eq 1 => seed_set
+      end
+
+      context "with a duplicate set number" do
+        it "increments the number until it has a unique one" do
+          seed_set_1 = klass.new 'set_1', 1
+          seed_set_2 = klass.new 'set_2', 1
+          expect(seed_set_2.set_number).to eq 2
+        end
       end
     end
 
@@ -27,32 +39,67 @@ describe ConfigScripts::Seeds::SeedSet do
   describe "batch operations" do
     let(:seed_sets) { [double, double] }
     before do
-      klass.instance_eval { @registered_sets = [] }
-      seed_sets.each do |set|
-        set.stub(write: true, read: true, order: 0)
+      klass.clear_registered_sets
+      klass.stub :puts
+      seed_sets.each_with_index do |set, index|
+        set.stub(
+          write: true,
+          read: true,
+          set_number: (index + 1) * 2,
+          name: "Seed Set #{index + 1}",
+          reset_records: true
+        )
         klass.register_seed_set(set)
       end
     end
 
     describe "write" do
-      it "calls the write method on each seed set" do
-        klass.write
-        seed_sets.each { |set| expect(set).to have_received(:write) }
+      context "with no argument" do
+        it "calls the write method on each seed set" do
+          klass.write
+          seed_sets.each { |set| expect(set).to have_received(:write) }
+        end
+      end
+
+      context "with an argument" do
+        it "calls the write method on the set whose number is given" do
+          klass.write(2)
+          expect(seed_sets.first).to have_received(:write)
+          expect(seed_sets.last).not_to have_received(:write)
+        end
       end
     end
 
     describe "read" do
-      it "calls the read method on each seed set" do
-        klass.read
-        seed_sets.each { |set| expect(set).to have_received(:read) }
+      context "with no argument" do
+        it "calls the read method on each seed set, telling it not to reset" do
+          klass.read
+          seed_sets.each { |set| expect(set).to have_received(:read).with(false) }
+        end
+      end
+
+      context "with an argument" do
+        it "calls the read method on the set whose number is given, telling it to reset" do
+          klass.read(4)
+          expect(seed_sets.last).to have_received(:read).with(true)
+          expect(seed_sets.first).not_to have_received(:read)
+        end
+      end
+    end
+
+    describe "list" do
+      it "prints the set number and name for each seed set" do
+        klass.list
+        expect(klass).to have_received(:puts).with("2: Seed Set 1")
+        expect(klass).to have_received(:puts).with("4: Seed Set 2")
       end
     end
   end
 
   describe "instance reading and writing" do
-    let(:set) { klass.new('test_seeds', 1) {} }
+    let(:set) { klass.new('test_seeds', 1, 'my_seeds') }
     let!(:seed_type) { double }
-    let(:seed_folder) { Rails.root.join('db', 'seeds', 'data', 'test_seeds') }
+    let(:seed_folder) { Rails.root.join('db', 'seeds', 'data', 'my_seeds') }
 
     before do
       FileUtils.stub :mkdir_p
@@ -75,25 +122,45 @@ describe ConfigScripts::Seeds::SeedSet do
       end
 
       it "says where it's writing the seeds to" do
-        expect(set).to have_received(:puts).with("Writing seeds to #{seed_folder}")
+        expect(set).to have_received(:puts).with("Writing seeds for test_seeds to #{seed_folder}")
       end
     end
 
     describe "read" do
       before do
-        set.read
+        set.stub :reset_records
       end
 
-      it "creates the seed folder" do
-        expect(FileUtils).to have_received(:mkdir_p).with(seed_folder)
+      context do
+        before do
+          set.read
+        end
+
+        it "creates the seed folder" do
+          expect(FileUtils).to have_received(:mkdir_p).with(seed_folder)
+        end
+
+        it "says where it's reading the seeds from" do
+          expect(set).to have_received(:puts).with("Reading seeds for test_seeds from #{seed_folder}")
+        end
+
+        it "reads all of the seed types from the folder" do
+          expect(seed_type).to have_received(:read_from_folder).with(seed_folder)
+        end
       end
 
-      it "says where it's reading the seeds from" do
-        expect(set).to have_received(:puts).with("Reading seeds from #{seed_folder}")
+      context "when resetting" do
+        it "resets the records" do
+          set.read(true)
+          expect(set).to have_received(:reset_records)
+        end
       end
 
-      it "reads all of the seed types from the folder" do
-        expect(seed_type).to have_received(:read_from_folder).with(seed_folder)
+      context "when not resetting" do
+        it "does not reset the records" do
+          set.read(false)
+          expect(set).not_to have_received(:reset_records)
+        end
       end
     end
   end
@@ -101,17 +168,21 @@ describe ConfigScripts::Seeds::SeedSet do
   describe "DSL" do
     describe "creation" do
       before do
-        klass.instance_eval { @registered_sets = [] }
+        klass.clear_registered_sets
       end
 
-      subject { klass.new('test_seeds', 5, setting: 'value') { @val = true } }
+      subject { klass.new('test_seeds', 5, 'my_seeds', setting: 'value') { @val = true } }
 
       it "sets the name" do
         expect(subject.name).to eq 'test_seeds'
       end
 
-      it "sets the order" do
-        expect(subject.order).to eq 5
+      it "sets the set number" do
+        expect(subject.set_number).to eq 5
+      end
+
+      it "sets the folder" do
+        expect(subject.folder).to eq 'my_seeds'
       end
 
       it "sets the options" do
@@ -127,7 +198,7 @@ describe ConfigScripts::Seeds::SeedSet do
       end
 
       it "registers the set with the klass" do
-        expect(klass.registered_sets).to include subject
+        expect(klass.registered_sets[subject.set_number]).to eq subject
       end
     end
 
@@ -151,6 +222,20 @@ describe ConfigScripts::Seeds::SeedSet do
       it "has a default filename based on the class name" do
         seeds = set.seeds_for(Person)
         expect(seeds.filename).to eq 'people'
+      end
+    end
+
+    describe "when_resetting" do
+      let(:set) { ConfigScripts::Seeds::SeedSet.new('test_seeds', 1) }
+
+      it "sets the reset_block value" do
+        value = 0
+        set.when_resetting do
+          value = 1
+        end
+        expect(value).to eq 0
+        set.reset_records
+        expect(value).to eq 1
       end
     end
   end
