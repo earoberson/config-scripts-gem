@@ -22,7 +22,7 @@ module ConfigScripts
       #
       # @return [Array<String>]
       def self.pending_scripts
-        paths = Dir.glob(File.join(self.script_directory, '*'))
+        paths = Dir.glob(File.join(self.script_directory, '*.rb'))
         paths.collect do |path|
           filename = File.basename(path, ".rb")
           timestamp = filename[0, 14]
@@ -50,6 +50,14 @@ module ConfigScripts
           success = klass.new(timestamp).run(:up)
         end
         true
+      end
+
+      # This method prints out the names of all of the scripts that have not
+      # been run.
+      def self.list_pending_scripts
+        self.pending_scripts.each do |filename|
+          puts filename
+        end
       end
 
       # @!group Creating

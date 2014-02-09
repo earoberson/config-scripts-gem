@@ -22,7 +22,7 @@ describe ConfigScripts::Scripts::Script do
 
       it "uses Dir to get the files" do
         subject
-        expect(Dir).to have_received(:glob).with(File.join(klass.script_directory, "*"))
+        expect(Dir).to have_received(:glob).with(File.join(klass.script_directory, "*.rb"))
       end
 
       it "includes filenames that don't have entries in the script histories" do
@@ -166,6 +166,19 @@ describe ConfigScripts::Scripts::Script do
         it "outputs a name error for the missing class" do
           expect(klass).to have_received(:puts).with("Aborting: could not find class MissingClassConfig")
         end
+      end
+    end
+
+    describe "list_pending_scripts" do
+      before do
+        klass.stub pending_scripts: ['script1.rb', 'script2.rb']
+        klass.stub :puts
+        klass.list_pending_scripts
+      end
+
+      it "prints out the name of each script" do
+        expect(klass).to have_received(:puts).with('script1.rb')
+        expect(klass).to have_received(:puts).with('script2.rb')
       end
     end
   end
