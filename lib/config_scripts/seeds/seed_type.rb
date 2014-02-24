@@ -199,7 +199,13 @@ module ConfigScripts
               value = self.read_value_for_attribute(value, attribute)
               record.send("#{attribute}=", value)
             end
-            record.save!
+            
+            begin
+              record.save!
+            rescue
+              puts "#{self.filename}.csv"
+              raise
+            end
           end
         end
       end

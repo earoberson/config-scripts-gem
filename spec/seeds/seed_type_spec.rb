@@ -185,6 +185,25 @@ describe ConfigScripts::Seeds::SeedType do
         end
       end
 
+      context "with exception" do
+        subject { seed_type.read_from_folder(folder) }
+
+        before do
+          $stdout.stub :puts
+          Person.any_instance.stub(:save!).and_raise
+          seed_type.has_attributes :name, :hair_color
+        end
+
+        it "is an exception" do
+          expect{ subject }.to raise_error
+        end
+
+        it "outputs the problem file name" do
+          expect($stdout).to receive(:puts).with('people.csv')
+          expect{ subject }.to raise_error
+        end
+      end
+
       context "with no attributes" do
         before do
           seed_type.read_from_folder(folder)
