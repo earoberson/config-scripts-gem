@@ -6,8 +6,8 @@ require 'config_scripts/version'
 Gem::Specification.new do |spec|
   spec.name          = "config_scripts"
   spec.version       = ConfigScripts::VERSION
-  spec.authors       = ["John Brownlee"]
-  spec.email         = ["apps@johnbrownlee.com"]
+  spec.authors       = ["John Brownlee", "Efrem Roberson"]
+  spec.email         = ["apps@johnbrownlee.com", "e@frem.me"]
   spec.description   =  "Library for creating trackable config scripts, and reading and writing seed data into spreadsheets"
   spec.summary       = "Config scripts and seed files for Rails"
   spec.license       = "MIT"
@@ -17,9 +17,9 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "rails", "> 3.0.0"
+  spec.add_dependency "rails", "> 6.0.0"
 
-  spec.add_development_dependency "bundler", "~> 1.3"
+  spec.add_development_dependency "bundler", "~> 2.1"
   spec.add_development_dependency "rake"
   spec.add_development_dependency "rspec"
   spec.add_development_dependency "yard"

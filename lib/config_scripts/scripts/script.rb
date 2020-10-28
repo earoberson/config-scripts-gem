@@ -32,7 +32,7 @@ module ConfigScripts
 
       # This method runs all the scripts that have not yet been run.
       #
-      # @return [True] 
+      # @return [True]
       def self.run_pending_scripts
         self.pending_scripts.each do |filename|
           path = Rails.root.join('db', 'config_scripts', "#{filename}.rb")
@@ -127,7 +127,6 @@ module ConfigScripts
           when :down
             ScriptHistory.remove_timestamp(@timestamp)
           end
-          Rails.cache.clear
         end
       end
     end

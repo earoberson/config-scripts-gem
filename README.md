@@ -25,6 +25,6 @@ And run them:
 
     $ rake db:migrate
 
-## Usage
+## Original Implementation
 
-See [the wiki](https://github.com/brownleej/config-scripts-gem/wiki) for usage examples.
+This project is a fork of https://github.com/kalinchuk/config-scripts-gem, which is a mirror of https://www.rubydoc.info/gems/config_scripts/0.4.7

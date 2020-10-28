@@ -13,7 +13,7 @@ module ConfigScripts
       # This method gets all of the entries that have a timestamp as their name.
       # @return [Relation<ScriptHistory>]
       def self.entries_for_timestamp(timestamp)
-        self.where(:name => timestamp)
+        self.where(script_name: timestamp)
       end
 
       # This method determines if we have run a script with a timestamp.

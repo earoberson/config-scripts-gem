@@ -13,10 +13,7 @@ describe ConfigScripts::MigrationsGenerator, type: :generator do
 
     context "when running repeatedly" do
       it "says that it has skipped it" do
-        output = capture :stderr do
-          run_generator
-        end
-        expect(output).to be =~ /Another migration is already named create_config_scripts/
+        expect(run_generator).to be =~ /identical/
       end
     end
   end

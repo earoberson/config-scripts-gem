@@ -12,7 +12,7 @@ describe ConfigScripts::Scripts::Script do
     describe "pending_scripts" do
       let!(:filename1) { "20140208150000_script_1" }
       let!(:filename2) { "20140208200000_script_2" }
-      
+
       subject { klass.pending_scripts }
 
       before do
@@ -58,8 +58,6 @@ describe ConfigScripts::Scripts::Script do
         TestConfigScriptConfig.stub(:new).with(timestamp1).and_return(script1)
         TestConfigScriptConfig.stub(:new).with(timestamp2).and_return(script2)
         TestConfigScriptConfig.stub(:new).with(timestamp3).and_return(script3)
-
-        FileUtils.mkdir_p(Rails.root.join("tmp", "cache"))
       end
 
       let(:scripts) {[
@@ -207,7 +205,7 @@ describe ConfigScripts::Scripts::Script do
         expect(lambda{script.down}).to raise_exception("Not supported")
       end
     end
-    
+
     describe "run" do
       {up: true, down: false}.each do |direction, expect_timestamp|
         describe "direction" do
@@ -217,8 +215,6 @@ describe ConfigScripts::Scripts::Script do
             end
 
             script.stub :puts
-
-            Rails.cache.write("cached_item", "cached_value")
           end
 
           context "with a success" do
@@ -232,10 +228,6 @@ describe ConfigScripts::Scripts::Script do
             it "performs the changes in the #{direction} method" do
               expect(Person.count).to eq 1
               expect(Person.first.name).to eq "John Doe"
-            end
-
-            it "cleares the cache" do
-              expect(Rails.cache.read("cached_item")).to be_nil
             end
 
             it "{expect_timestamp ? 'adds' : 'removes'} the timestamp" do
@@ -258,11 +250,6 @@ describe ConfigScripts::Scripts::Script do
             it "does not persist the changes in the #{direction} method" do
               script.run(direction) rescue nil
               expect(Person.count).to eq 0
-            end
-
-            it "does not clear the cache" do
-              script.run(direction) rescue nil
-              expect(Rails.cache.read('cached_item')).to eq 'cached_value'
             end
 
             it "does not #{expect_timestamp ? 'add' : 'remove'} the timestamp" do
