@@ -8,4 +8,14 @@ namespace :config_scripts do
   task :list_pending => :environment do
     ConfigScripts::Scripts::Script.list_pending_scripts
   end
+
+  desc "Rollback config script"
+  task :rollback => :environment do
+    ConfigScripts::Scripts::Script.rollback_script(ENV['SCRIPT'])
+  end
+
+  desc "Rollback config script"
+  task :run => :environment do
+    ConfigScripts::Scripts::Script.run(ENV['SCRIPT'])
+  end
 end

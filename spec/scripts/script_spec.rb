@@ -82,7 +82,7 @@ describe ConfigScripts::Scripts::Script do
       shared_examples "ran scripts" do
         it "requires only the scripts it needs to run" do
           scripts.each do |script|
-            path = Rails.root.join("db", "config_scripts", "#{script[:filename]}.rb")
+            path = File.join(Rails.root.join("db", "config_scripts", "#{script[:filename]}.rb"))
             if script[:run]
               expect(klass).to have_received(:require).with(path)
             else
@@ -157,7 +157,7 @@ describe ConfigScripts::Scripts::Script do
         it_behaves_like "ran scripts"
 
         it "requires the path for the bad script" do
-          path = Rails.root.join("db", "config_scripts", "#{bad_filename}.rb")
+          path = File.join(Rails.root.join("db", "config_scripts", "#{bad_filename}.rb"))
           expect(klass).to have_received(:require).with(path)
         end
 

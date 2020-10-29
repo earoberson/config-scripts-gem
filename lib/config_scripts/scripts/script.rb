@@ -55,12 +55,82 @@ module ConfigScripts
         true
       end
 
+      def self.run(config_name)
+        pathname = Dir.glob(File.join(self.script_directory, "*#{config_name.underscore}.rb"))[0]
+
+        if pathname.nil?
+          puts "Aborting: no script found by that name"
+          return
+        end
+
+        timestamp = pathname.split('/').last[0,14]
+        require pathname
+        class_name = config_name.camelize + 'Config'
+        klass = nil
+        begin
+          klass = class_name.constantize
+        rescue NameError
+          puts "Aborting: could not find class #{class_name}"
+          return
+        end
+        puts "Running #{config_name}"
+        klass.new(timestamp).run(:up)
+      end
+
       # This method prints out the names of all of the scripts that have not
       # been run.
       def self.list_pending_scripts
         self.pending_scripts.each do |filename|
           puts filename
         end
+      end
+
+      def self.rollback_script(config_name = nil)
+        if config_name.blank?
+          rollback_latest_script
+          return
+        end
+
+        pathname = Dir.glob(File.join(self.script_directory, "*#{config_name.underscore}.rb"))[0]
+        if pathname.nil?
+          puts "Aborting: no script found by that name"
+          return
+        end
+
+        timestamp = pathname.split('/').last[0,14]
+        rollback(pathname, config_name, timestamp)
+      end
+
+      def self.rollback_latest_script
+        most_recent_script = ScriptHistory.last
+        if most_recent_script.present?
+          timestamp = most_recent_script.script_name
+          pathname = Dir.glob(File.join(self.script_directory, "#{timestamp}*.rb"))[0]
+
+          if pathname.nil?
+            puts "Aborting: no scripts in script directory."
+            return
+          end
+
+          config_name = pathname.split('/').last.gsub(/.rb\z/, '')[15..-1]
+          rollback(pathname, config_name, timestamp)
+        else
+          puts "Aborting: no scripts have been run yet."
+        end
+      end
+
+      def self.rollback(pathname, config_name, timestamp)
+        require pathname
+        class_name = config_name.camelize + 'Config'
+        klass = nil
+        begin
+          klass = class_name.constantize
+        rescue NameError
+          puts "Aborting: could not find class #{class_name}"
+          return
+        end
+        puts "Rolling back #{config_name}"
+        klass.new(timestamp).run(:down)
       end
 
       # @!group Creating
