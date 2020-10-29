@@ -7,11 +7,14 @@ module ConfigScripts
 
       # This method gets the directory in which the scripts will be stored.
       #
-      # The scripts are stored in the +db/config_scripts+ directory under the app.
+      # The scripts are stored by default in the +db/config_scripts+ directory
+      # under the app. However, if the application sets a different path, this path
+      # will be used.
       #
       # @return [String]
       def self.script_directory
-        Rails.root.join('db', 'config_scripts')
+        Rails.application.config.paths['db/config_scripts'].try(:first) ||
+          Rails.root.join('db', 'config_scripts')
       end
 
       # @!group Pending Scripts
@@ -35,7 +38,7 @@ module ConfigScripts
       # @return [True]
       def self.run_pending_scripts
         self.pending_scripts.each do |filename|
-          path = Rails.root.join('db', 'config_scripts', "#{filename}.rb")
+          path = File.join(self.script_directory, "#{filename}.rb")
           require path
           timestamp = filename[0,14]
           class_name = filename[15..-1].camelize + 'Config'
